@@ -1,0 +1,17 @@
+server:
+  url: "http://localhost:8080"
+  timeout: 10
+
+agent:
+  hostname: ""          # leave empty to auto-detect
+  interval: 30          # seconds between reports
+  tags:
+    - production
+
+# Cosa monitorare (rimuovi la sezione o imposta true per abilitare tutto)
+collect:
+  cpu: true
+  memory: true
+  disk: true
+  network: true
+  load: true

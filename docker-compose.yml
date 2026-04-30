@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${LOGSWAY_PORT:-8080}:8080"
+    environment:
+      - LOGSWAY_ADDR=:8080
+      - LOGSWAY_DB=/data/logsway.db
+    volumes:
+      - logsway-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=
+    restart: unless-stopped
+    ports:
+      - "${LOGSWAY_UI_PORT:-3000}:80"
+    depends_on:
+      - server
+
+volumes:
+  logsway-data:
