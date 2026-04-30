@@ -142,7 +142,7 @@ function buildSeries(points) {
 
 function formatTime(ts) {
   const d = new Date(ts)
-  return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 }
 
 function formatRelative(ts) {

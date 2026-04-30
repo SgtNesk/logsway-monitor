@@ -1,8 +1,8 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, Link } from 'react-router-dom'
 
 function ActivityIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="logo-wave" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
     </svg>
   )
@@ -23,14 +23,14 @@ export default function Layout({ children }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-14">
             {/* Logo */}
-            <div className="flex items-center gap-2">
-              <span className="text-healthy">
+            <Link to="/" className="flex items-center gap-2 group" title="Go to dashboard">
+              <span className="text-healthy group-hover:scale-105 transition-transform">
                 <ActivityIcon />
               </span>
-              <span className="font-semibold text-gray-900 text-base tracking-tight">
+              <span className="font-semibold text-gray-900 text-base tracking-tight group-hover:text-gray-700 transition-colors">
                 LOGSWAY
               </span>
-            </div>
+            </Link>
 
             {/* Nav */}
             <nav className="flex items-center gap-1">
@@ -66,7 +66,7 @@ export default function Layout({ children }) {
       </main>
 
       <footer className="border-t border-gray-100 py-4 text-center text-xs text-gray-400">
-        Logsway — Monitoring che capisci in 5 minuti
+        Logsway — Monitoring you understand in 5 minutes
       </footer>
     </div>
   )

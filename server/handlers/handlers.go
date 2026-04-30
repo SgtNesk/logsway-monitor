@@ -24,6 +24,9 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	api := r.PathPrefix("/api/v1").Subrouter()
 	api.HandleFunc("/health", h.Health).Methods("GET")
 	api.HandleFunc("/metrics", h.ReceiveMetrics).Methods("POST")
+	api.HandleFunc("/ack", h.AckProblem).Methods("POST")
+	api.HandleFunc("/ack", h.GetAcks).Methods("GET")
+	api.HandleFunc("/ack/{hostname}/{service}", h.DeleteAck).Methods("DELETE")
 	api.HandleFunc("/hosts", h.ListHosts).Methods("GET")
 	api.HandleFunc("/hosts/{hostname}", h.GetHost).Methods("GET")
 	api.HandleFunc("/hosts/{hostname}/metrics", h.GetHostMetrics).Methods("GET")
@@ -36,6 +39,51 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusOK, map[string]string{"status": "ok", "time": time.Now().UTC().Format(time.RFC3339)})
+}
+
+func (h *Handler) AckProblem(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Hostname string `json:"hostname"`
+		Service  string `json:"service"`
+		Message  string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid payload")
+		return
+	}
+	if req.Hostname == "" || req.Service == "" {
+		respondError(w, http.StatusBadRequest, "hostname and service required")
+		return
+	}
+	if req.Message == "" {
+		req.Message = "Acknowledged"
+	}
+
+	if err := h.db.AckProblem(req.Hostname, req.Service, req.Message); err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	respond(w, http.StatusCreated, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) DeleteAck(w http.ResponseWriter, r *http.Request) {
+	hostname := mux.Vars(r)["hostname"]
+	service := mux.Vars(r)["service"]
+
+	if err := h.db.RemoveAck(hostname, service); err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) GetAcks(w http.ResponseWriter, r *http.Request) {
+	acks, err := h.db.GetAllAcks()
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	respond(w, http.StatusOK, acks)
 }
 
 func (h *Handler) ReceiveMetrics(w http.ResponseWriter, r *http.Request) {

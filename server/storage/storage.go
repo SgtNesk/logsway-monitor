@@ -75,6 +75,15 @@ func (s *DB) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_custom_checks_host_name ON custom_checks(hostname, check_name, timestamp DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_custom_checks_name ON custom_checks(check_name)`,
+		`CREATE TABLE IF NOT EXISTS acknowledgments (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			hostname TEXT NOT NULL,
+			service TEXT NOT NULL,
+			acked_by TEXT DEFAULT 'user',
+			acked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			message TEXT,
+			UNIQUE(hostname, service)
+		)`,
 	}
 	for _, s2 := range stmts {
 		if _, err := s.db.Exec(s2); err != nil {
@@ -342,6 +351,53 @@ func (s *DB) GetLastEvent(hostname, service string) (*models.Event, error) {
 		e.Value = &v
 	}
 	return &e, nil
+}
+
+func (s *DB) AckProblem(hostname, service, message string) error {
+	_, err := s.db.Exec(`
+		INSERT OR REPLACE INTO acknowledgments (hostname, service, message)
+		VALUES (?, ?, ?)
+	`, hostname, service, message)
+	return err
+}
+
+func (s *DB) RemoveAck(hostname, service string) error {
+	_, err := s.db.Exec(`DELETE FROM acknowledgments WHERE hostname = ? AND service = ?`, hostname, service)
+	return err
+}
+
+func (s *DB) GetAllAcks() ([]map[string]interface{}, error) {
+	rows, err := s.db.Query(`SELECT hostname, service, message, acked_at FROM acknowledgments`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var acks []map[string]interface{}
+	for rows.Next() {
+		var hostname, service string
+		var message sql.NullString
+		var ackedAt time.Time
+		if err := rows.Scan(&hostname, &service, &message, &ackedAt); err != nil {
+			return nil, err
+		}
+		acks = append(acks, map[string]interface{}{
+			"hostname": hostname,
+			"service":  service,
+			"message":  message.String,
+			"acked_at": ackedAt,
+		})
+	}
+	if acks == nil {
+		acks = []map[string]interface{}{}
+	}
+	return acks, nil
+}
+
+func (s *DB) IsAcked(hostname, service string) bool {
+	var count int
+	s.db.QueryRow(`SELECT COUNT(*) FROM acknowledgments WHERE hostname = ? AND service = ?`, hostname, service).Scan(&count)
+	return count > 0
 }
 
 // GetMetricHistory restituisce lo storico di una singola metrica

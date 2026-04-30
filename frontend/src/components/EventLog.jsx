@@ -25,7 +25,7 @@ export default function EventLog({ events = [] }) {
   if (events.length === 0) {
     return (
       <p className="text-sm text-gray-400 py-4 text-center">
-        Nessun evento nelle ultime 24 ore.
+        No events in the last 24 hours.
       </p>
     )
   }
@@ -89,8 +89,8 @@ function formatTime(ts) {
   const today = new Date()
   const isToday = d.toDateString() === today.toDateString()
   if (isToday) {
-    return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   }
-  return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }) +
-    ' ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit' }) +
+    ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 }

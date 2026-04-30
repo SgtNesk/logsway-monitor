@@ -25,7 +25,7 @@ function StatusDot({ status, hostname, service }) {
         to={`/host/${hostname}/service/${service}`}
         title={`${hostname} / ${service}: ${status}`}
         className={`
-          inline-block w-5 h-5 rounded-full
+          inline-block w-2.5 h-2.5 rounded-full status-orb
           ${STATUS_COLOR[status] ?? 'bg-gray-300'}
           ring-2 ring-offset-1 ${STATUS_RING[status] ?? 'ring-gray-300'}
           hover:scale-125 transition-transform
@@ -55,13 +55,13 @@ export default function MatrixPage() {
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Matrix</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Ogni pallino rappresenta lo stato di un servizio. Clicca per il dettaglio.
+          Each dot represents the state of a service. Click for details.
         </p>
       </div>
 
       {hosts.length === 0 ? (
         <div className="card text-center py-16 text-gray-400">
-          Nessun host connesso ancora.
+          No connected hosts yet.
         </div>
       ) : (
         <div className="card p-0 overflow-x-auto">

@@ -71,12 +71,11 @@ export default function ServiceDetailPage() {
         </div>
       </div>
 
-      {/* Metriche correnti */}
       <div className="card">
-        <h2 className="text-sm font-medium text-gray-900 mb-4">Stato corrente</h2>
+        <h2 className="text-sm font-medium text-gray-900 mb-4">Current Status</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <InfoItem
-            label="Valore attuale"
+            label="Current Value"
             value={detail.current_value != null
               ? `${detail.current_value.toFixed(1)}${unit}`
               : '—'}
@@ -84,13 +83,13 @@ export default function ServiceDetailPage() {
           />
           {detail.thresholds && (
             <>
-              <InfoItem label="Soglia warning"  value={`${detail.thresholds.warning}${unit}`}  />
-              <InfoItem label="Soglia critical" value={`${detail.thresholds.critical}${unit}`} />
+              <InfoItem label="Warning Threshold"  value={`${detail.thresholds.warning}${unit}`}  />
+              <InfoItem label="Critical Threshold" value={`${detail.thresholds.critical}${unit}`} />
             </>
           )}
           {detail.last_change && (
             <InfoItem
-              label="Ultimo cambio"
+              label="Last Change"
               value={`${detail.last_change.from} → ${detail.last_change.to}`}
               sub={formatRelative(detail.last_change.at)}
             />
@@ -98,11 +97,10 @@ export default function ServiceDetailPage() {
         </div>
       </div>
 
-      {/* Grafico storico */}
       {points.length > 0 && (
         <div className="card">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-sm font-medium text-gray-900">Storico</h2>
+            <h2 className="text-sm font-medium text-gray-900">History</h2>
             <div className="flex gap-1">
               {HOUR_OPTIONS.map(h => (
                 <button
@@ -151,7 +149,7 @@ function ServiceChart({ data, unit, warning, critical }) {
         <YAxis domain={domain} tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} />
         <Tooltip
           contentStyle={{ fontSize: 12, border: '1px solid #e5e7eb', borderRadius: 6 }}
-          formatter={(v) => [`${typeof v === 'number' ? v.toFixed(2) : v}${unit}`, 'Valore']}
+          formatter={(v) => [`${typeof v === 'number' ? v.toFixed(2) : v}${unit}`, 'Value']}
         />
         {warning != null && (
           <ReferenceLine y={warning} stroke="#eab308" strokeDasharray="4 3" strokeWidth={1.5}
@@ -188,14 +186,14 @@ function InfoItem({ label, value, sub, highlight }) {
 
 function formatTime(ts) {
   const d = new Date(ts)
-  return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 }
 
 function formatRelative(ts) {
   if (!ts) return '—'
   const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000)
-  if (diff < 60)   return `${diff}s fa`
-  if (diff < 3600) return `${Math.floor(diff / 60)}m fa`
-  if (diff < 86400)return `${Math.floor(diff / 3600)}h fa`
-  return `${Math.floor(diff / 86400)}d fa`
+  if (diff < 60) return `${diff}s ago`
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return `${Math.floor(diff / 86400)}d ago`
 }

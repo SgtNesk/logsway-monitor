@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useApi } from '../hooks/useApi'
 import { StatusBadge, Spinner, ErrorBox } from '../components/ui'
 import { Link } from 'react-router-dom'
@@ -34,6 +35,52 @@ const SEVERITY_ORDER = { critical: 0, offline: 1, warning: 2 }
 export default function ProblemsPage() {
   const { data: hosts, loading, error } = useApi('/api/v1/hosts')
   const { data: eventsData } = useApi('/api/v1/events?hours=24', 15000)
+  const [acks, setAcks] = useState([])
+
+  useEffect(() => {
+    let mounted = true
+
+    async function fetchAcks() {
+      try {
+        const res = await fetch('/api/v1/ack')
+        if (!res.ok) throw new Error('failed to load acks')
+        const data = await res.json()
+        if (mounted) setAcks(Array.isArray(data) ? data : [])
+      } catch {
+        if (mounted) setAcks([])
+      }
+    }
+
+    fetchAcks()
+    const id = setInterval(fetchAcks, 10000)
+    return () => {
+      mounted = false
+      clearInterval(id)
+    }
+  }, [])
+
+  const serviceKey = (problem) => (problem.metric || 'host').toLowerCase()
+  const isAcked = (hostname, service) =>
+    acks.some((a) => a.hostname === hostname && a.service === service)
+
+  async function handleAck(hostname, service) {
+    const message = window.prompt('Acknowledge message (optional):') || 'Acknowledged'
+    const res = await fetch('/api/v1/ack', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hostname, service, message }),
+    })
+    if (!res.ok) return
+    const list = await fetch('/api/v1/ack').then((r) => (r.ok ? r.json() : []))
+    setAcks(Array.isArray(list) ? list : [])
+  }
+
+  async function handleUnack(hostname, service) {
+    const res = await fetch(`/api/v1/ack/${hostname}/${service}`, { method: 'DELETE' })
+    if (!res.ok && res.status !== 204) return
+    const list = await fetch('/api/v1/ack').then((r) => (r.ok ? r.json() : []))
+    setAcks(Array.isArray(list) ? list : [])
+  }
 
   if (loading) return <Spinner />
   if (error) return <ErrorBox message={error} />
@@ -54,7 +101,6 @@ export default function ProblemsPage() {
 
   return (
     <div className="space-y-8">
-      {/* ── Sezione problemi attuali ── */}
       <div className="space-y-4">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Problems</h1>
@@ -83,13 +129,16 @@ export default function ProblemsPage() {
                 <th className="text-left px-5 py-3 font-medium">Problem</th>
                 <th className="text-left px-5 py-3 font-medium">Value</th>
                 <th className="text-left px-5 py-3 font-medium hidden md:table-cell">Since</th>
+                <th className="text-left px-5 py-3 font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ host, problem }, i) => (
+              {rows.map(({ host, problem }, i) => {
+                const acked = isAcked(host.hostname, serviceKey(problem))
+                return (
                 <tr
                   key={`${host.hostname}-${problem.metric}-${i}`}
-                  className={`hover:bg-gray-50 transition-colors ${
+                  className={`hover:bg-gray-50 transition-colors ${acked ? 'opacity-60 ' : ''}${
                     i < rows.length - 1 ? 'border-b border-gray-50' : ''
                   }`}
                 >
@@ -104,7 +153,10 @@ export default function ProblemsPage() {
                       {host.hostname}
                     </Link>
                   </td>
-                  <td className="px-5 py-3.5 text-gray-700">{problem.label}</td>
+                  <td className="px-5 py-3.5 text-gray-700">
+                    {problem.label}
+                    {acked && <span className="ml-2 text-xs text-blue-500">(ACK)</span>}
+                  </td>
                   <td className="px-5 py-3.5 font-mono text-gray-700">
                     {problem.value != null
                       ? `${problem.value.toFixed(1)}${problem.unit}`
@@ -113,19 +165,36 @@ export default function ProblemsPage() {
                   <td className="px-5 py-3.5 hidden md:table-cell text-gray-400 text-xs">
                     {formatRelative(host.last_seen)}
                   </td>
+                  <td className="px-5 py-3.5">
+                    {acked ? (
+                      <button
+                        onClick={() => handleUnack(host.hostname, serviceKey(problem))}
+                        className="px-3 py-1 text-xs rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      >
+                        Unack
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleAck(host.hostname, serviceKey(problem))}
+                        className="px-3 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-500"
+                      >
+                        Ack
+                      </button>
+                    )}
+                  </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
       )}
       </div>
 
-      {/* ── Event Log ── */}
       <div className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Recent Events</h2>
-          <p className="text-sm text-gray-500 mt-1">Cambi di stato nelle ultime 24 ore</p>
+          <p className="text-sm text-gray-500 mt-1">State changes in the last 24 hours</p>
         </div>
         <div className="card">
           <EventLog events={eventsData?.events ?? []} />
