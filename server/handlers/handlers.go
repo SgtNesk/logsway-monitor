@@ -51,9 +51,18 @@ func (h *Handler) ReceiveMetrics(w http.ResponseWriter, r *http.Request) {
 
 	// Carica stato precedente PRIMA di salvare le nuove metriche
 	prevHost, _ := h.db.GetHost(payload.Hostname)
+	prevCustomChecks, _ := h.db.GetLatestCustomChecks(payload.Hostname)
+	prevCustomByName := map[string]models.CustomCheck{}
+	for _, c := range prevCustomChecks {
+		prevCustomByName[c.Name] = c
+	}
 
 	if err := h.db.StoreMetrics(&payload); err != nil {
 		respondError(w, http.StatusInternalServerError, "storage error")
+		return
+	}
+	if err := h.db.SaveCustomChecks(payload.Hostname, payload.CustomChecks, payload.Timestamp); err != nil {
+		respondError(w, http.StatusInternalServerError, "custom checks storage error")
 		return
 	}
 
@@ -77,6 +86,29 @@ func (h *Handler) ReceiveMetrics(w http.ResponseWriter, r *http.Request) {
 				ToStatus:   curr.Status,
 				Value:      curr.Value,
 				Message:    eventMessage(svc, prev.Status, curr.Status, curr.Value),
+			})
+		}
+
+		for _, curr := range payload.CustomChecks {
+			if curr.Name == "" {
+				continue
+			}
+			prev, ok := prevCustomByName[curr.Name]
+			if !ok || prev.Status == "" || prev.Status == curr.Status {
+				continue
+			}
+			message := curr.Message
+			if message == "" {
+				message = eventMessage(curr.Name, prev.Status, curr.Status, curr.Value)
+			}
+			h.db.CreateEvent(models.Event{ //nolint:errcheck
+				Timestamp:  now,
+				Hostname:   payload.Hostname,
+				Service:    curr.Name,
+				FromStatus: prev.Status,
+				ToStatus:   curr.Status,
+				Value:      curr.Value,
+				Message:    message,
 			})
 		}
 	}

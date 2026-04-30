@@ -64,6 +64,17 @@ func (s *DB) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_events_hostname ON events(hostname, timestamp DESC)`,
+		`CREATE TABLE IF NOT EXISTS custom_checks (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			hostname   TEXT NOT NULL,
+			check_name TEXT NOT NULL,
+			status     TEXT NOT NULL,
+			value      REAL,
+			message    TEXT NOT NULL DEFAULT '',
+			timestamp  DATETIME NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_custom_checks_host_name ON custom_checks(hostname, check_name, timestamp DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_custom_checks_name ON custom_checks(check_name)`,
 	}
 	for _, s2 := range stmts {
 		if _, err := s.db.Exec(s2); err != nil {
@@ -355,4 +366,142 @@ func (s *DB) GetMetricHistory(hostname, metricName string, since time.Duration) 
 		points = append(points, p)
 	}
 	return points, nil
+}
+
+// SaveCustomChecks salva i risultati custom checks per un host.
+func (s *DB) SaveCustomChecks(hostname string, checks []models.CustomCheck, ts time.Time) error {
+	if len(checks) == 0 {
+		return nil
+	}
+	if ts.IsZero() {
+		ts = time.Now().UTC()
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	stmt, err := tx.Prepare(`
+		INSERT INTO custom_checks (hostname, check_name, status, value, message, timestamp)
+		VALUES (?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer stmt.Close()
+
+	for _, c := range checks {
+		if c.Name == "" {
+			continue
+		}
+		if _, err := stmt.Exec(hostname, c.Name, c.Status, c.Value, c.Message, ts.UTC()); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// GetLatestCustomChecks restituisce l'ultimo valore per ogni custom check di un host.
+func (s *DB) GetLatestCustomChecks(hostname string) ([]models.CustomCheck, error) {
+	rows, err := s.db.Query(`
+		SELECT cc.check_name, cc.status, cc.value, cc.message, cc.timestamp
+		FROM custom_checks cc
+		JOIN (
+			SELECT check_name, MAX(id) AS max_id
+			FROM custom_checks
+			WHERE hostname = ?
+			GROUP BY check_name
+		) latest ON latest.max_id = cc.id
+		WHERE cc.hostname = ?
+		ORDER BY cc.check_name`, hostname, hostname)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	checks := []models.CustomCheck{}
+	for rows.Next() {
+		var c models.CustomCheck
+		var val sql.NullFloat64
+		if err := rows.Scan(&c.Name, &c.Status, &val, &c.Message, &c.Timestamp); err != nil {
+			return nil, err
+		}
+		if val.Valid {
+			v := val.Float64
+			c.Value = &v
+		}
+		checks = append(checks, c)
+	}
+	return checks, nil
+}
+
+// GetLatestCustomCheck restituisce l'ultimo valore di un singolo custom check.
+func (s *DB) GetLatestCustomCheck(hostname, checkName string) (*models.CustomCheck, error) {
+	var c models.CustomCheck
+	var val sql.NullFloat64
+	err := s.db.QueryRow(`
+		SELECT check_name, status, value, message, timestamp
+		FROM custom_checks
+		WHERE hostname = ? AND check_name = ?
+		ORDER BY id DESC LIMIT 1`, hostname, checkName).
+		Scan(&c.Name, &c.Status, &val, &c.Message, &c.Timestamp)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if val.Valid {
+		v := val.Float64
+		c.Value = &v
+	}
+	return &c, nil
+}
+
+// GetAllCustomCheckNames restituisce tutti i nomi check conosciuti per colonne dinamiche matrice.
+func (s *DB) GetAllCustomCheckNames() ([]string, error) {
+	rows, err := s.db.Query(`SELECT DISTINCT check_name FROM custom_checks ORDER BY check_name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	names := []string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	return names, nil
+}
+
+// GetCustomCheckHistory restituisce lo storico di un custom check.
+func (s *DB) GetCustomCheckHistory(hostname, checkName string, since time.Duration) ([]models.CustomCheck, error) {
+	rows, err := s.db.Query(`
+		SELECT check_name, status, value, message, timestamp
+		FROM custom_checks
+		WHERE hostname = ? AND check_name = ? AND timestamp > ?
+		ORDER BY timestamp ASC`, hostname, checkName, time.Now().Add(-since).UTC())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []models.CustomCheck{}
+	for rows.Next() {
+		var c models.CustomCheck
+		var val sql.NullFloat64
+		if err := rows.Scan(&c.Name, &c.Status, &val, &c.Message, &c.Timestamp); err != nil {
+			return nil, err
+		}
+		if val.Valid {
+			v := val.Float64
+			c.Value = &v
+		}
+		out = append(out, c)
+	}
+	return out, nil
 }

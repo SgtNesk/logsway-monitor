@@ -8,6 +8,7 @@ REPO="SgtNesk/logsway-monitor"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/logsway"
 LOG_DIR="/var/log/logsway"
+CHECKS_DIR="/etc/logsway/checks"
 SERVICE_NAME="logsway-agent"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
@@ -61,7 +62,7 @@ chmod +x "/tmp/${BINARY}"
 info "[3/5] Installo in ${INSTALL_DIR}..."
 mv "/tmp/${BINARY}" "${INSTALL_DIR}/logsway-agent"
 
-mkdir -p "$CONFIG_DIR" "$LOG_DIR"
+mkdir -p "$CONFIG_DIR" "$LOG_DIR" "$CHECKS_DIR"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 info "[4/5] Creo configurazione..."
@@ -73,6 +74,9 @@ server:
   # URL del server Logsway (dove invio le metriche)
   url: "${SERVER_URL}"
   timeout: 10
+
+# Cartella script custom checks (*.sh eseguibili)
+checks_dir: "/etc/logsway/checks"
 
 agent:
   # Nome di questa macchina (come appare nella dashboard)

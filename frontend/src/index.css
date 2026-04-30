@@ -42,3 +42,66 @@
     @apply btn bg-white text-gray-700 border-gray-200 hover:bg-gray-50;
   }
 }
+
+@layer base {
+  html.theme-dark body {
+    background: #0b1220;
+    color: #e5e7eb;
+  }
+
+  html.theme-dark .card {
+    background: #111827;
+    border-color: #334155;
+    box-shadow: none;
+  }
+
+  html.theme-dark .btn-primary {
+    background: #2563eb;
+    border-color: #2563eb;
+  }
+
+  html.theme-dark .btn-primary:hover {
+    background: #1d4ed8;
+  }
+
+  html.theme-dark .btn-secondary {
+    background: #1f2937;
+    color: #e5e7eb;
+    border-color: #334155;
+  }
+
+  html.theme-dark .btn-secondary:hover {
+    background: #0f172a;
+  }
+
+  html.theme-dark .bg-white,
+  html.theme-dark .bg-gray-50,
+  html.theme-dark .bg-gray-100 {
+    background-color: #111827 !important;
+  }
+
+  html.theme-dark .border-gray-50,
+  html.theme-dark .border-gray-100,
+  html.theme-dark .border-gray-200 {
+    border-color: #334155 !important;
+  }
+
+  html.theme-dark .text-gray-900 {
+    color: #f8fafc !important;
+  }
+
+  html.theme-dark .text-gray-700,
+  html.theme-dark .text-gray-600,
+  html.theme-dark .text-gray-500,
+  html.theme-dark .text-gray-400 {
+    color: #cbd5e1 !important;
+  }
+
+  html.theme-dark input,
+  html.theme-dark textarea,
+  html.theme-dark select {
+    background: #0f172a;
+    color: #e5e7eb;
+    border-color: #334155;
+  }
+}

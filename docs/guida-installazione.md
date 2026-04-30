@@ -12,7 +12,8 @@ Non serve esperienza precedente con il monitoring.
 5. [Installazione Agent](#installazione-agent)
 6. [Verifica](#verifica)
 7. [Comandi utili](#comandi-utili)
-8. [Prossimi passi](#prossimi-passi)
+8. [Custom Checks](#custom-checks)
+9. [Prossimi passi](#prossimi-passi)
 
 ---
 
@@ -212,6 +213,85 @@ curl -fsSL https://raw.githubusercontent.com/SgtNesk/logsway-monitor/main/uninst
 # Agent
 curl -fsSL https://raw.githubusercontent.com/SgtNesk/logsway-monitor/main/uninstall-agent.sh | sudo bash
 ```
+
+---
+
+## Custom Checks
+
+Puoi monitorare qualsiasi cosa scrivendo script bash. L'agent esegue automaticamente ogni
+script `.sh` eseguibile in `/etc/logsway/checks` e invia i risultati al server.
+
+### Creare un check
+
+1. Crea lo script:
+
+```bash
+sudo mkdir -p /etc/logsway/checks
+sudo nano /etc/logsway/checks/check_backup.sh
+```
+
+2. Formato output (3 blocchi):
+
+```text
+ok|warning|critical
+valore_numerico
+messaggio dettagliato (una o piu righe)
+```
+
+3. Rendi eseguibile:
+
+```bash
+sudo chmod +x /etc/logsway/checks/check_backup.sh
+```
+
+4. Fine. Entro ~30 secondi appare in [Matrix](http://localhost:8080/matrix)
+come nuova colonna con nome `backup` (da `check_backup.sh`).
+
+### Esempio minimo
+
+```bash
+#!/usr/bin/env bash
+if [[ -f /var/backups/latest.tar.gz ]]; then
+  echo "ok"
+  echo "1"
+  echo "Backup exists"
+else
+  echo "critical"
+  echo "0"
+  echo "Backup file missing!"
+fi
+```
+
+### Script pronti da copiare
+
+Nella repo trovi esempi in `examples/checks/`:
+- `check_backup.sh`
+- `check_ssl.sh`
+- `check_service.sh`
+- `check_disk_smart.sh`
+
+Puoi copiarli cosi:
+
+```bash
+sudo mkdir -p /etc/logsway/checks
+sudo cp examples/checks/*.sh /etc/logsway/checks/
+sudo chmod +x /etc/logsway/checks/*.sh
+```
+
+### Test rapido
+
+```bash
+cat <<'EOF' | sudo tee /etc/logsway/checks/check_test.sh >/dev/null
+#!/usr/bin/env bash
+echo "ok"
+echo "42"
+echo "Test check working"
+EOF
+sudo chmod +x /etc/logsway/checks/check_test.sh
+sudo systemctl restart logsway-agent
+```
+
+Poi apri `/matrix`: deve apparire la colonna `test`.
 
 ---
 

@@ -27,6 +27,15 @@ type ServiceStatus struct {
 	Threshold *float64 `json:"threshold,omitempty"`
 }
 
+// CustomCheck rappresenta uno stato check custom inviato dall'agent.
+type CustomCheck struct {
+	Name      string    `json:"name"`
+	Status    string    `json:"status"`
+	Value     *float64  `json:"value,omitempty"`
+	Message   string    `json:"message"`
+	Timestamp time.Time `json:"timestamp,omitempty"`
+}
+
 // MatrixHost — riga nella matrice host×servizi
 type MatrixHost struct {
 	Hostname    string                   `json:"hostname"`

@@ -20,9 +20,34 @@ func (h *Handler) GetMatrix(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	customNames, err := h.db.GetAllCustomCheckNames()
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	allServices := append(append([]string{}, serviceList...), customNames...)
+
 	result := make([]models.MatrixHost, 0, len(hosts))
 	for _, host := range hosts {
 		svcs := serviceStatusesFromMetrics(host.LastMetrics, host.LastSeen)
+
+		latestChecks, err := h.db.GetLatestCustomChecks(host.Hostname)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "db error")
+			return
+		}
+		for _, c := range latestChecks {
+			svcs[c.Name] = models.ServiceStatus{
+				Status: c.Status,
+				Value:  c.Value,
+			}
+		}
+		for _, cname := range customNames {
+			if _, ok := svcs[cname]; !ok {
+				svcs[cname] = models.ServiceStatus{Status: "unknown"}
+			}
+		}
+
 		result = append(result, models.MatrixHost{
 			Hostname:    host.Hostname,
 			Services:    svcs,
@@ -32,7 +57,7 @@ func (h *Handler) GetMatrix(w http.ResponseWriter, r *http.Request) {
 
 	resp := models.MatrixResponse{
 		Hosts:    result,
-		Services: serviceList,
+		Services: allServices,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

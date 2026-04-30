@@ -18,6 +18,7 @@ import (
 var Version = "dev"
 
 type Config struct {
+	ChecksDir string `yaml:"checks_dir"`
 	Server struct {
 		URL     string `yaml:"url"`
 		Timeout int    `yaml:"timeout"`
@@ -37,10 +38,11 @@ type Config struct {
 }
 
 type MetricPayload struct {
-	Hostname  string             `json:"hostname"`
-	Timestamp time.Time          `json:"timestamp"`
-	Tags      []string           `json:"tags"`
-	Metrics   collectors.Metrics `json:"metrics"`
+	Hostname     string                   `json:"hostname"`
+	Timestamp    time.Time                `json:"timestamp"`
+	Tags         []string                 `json:"tags"`
+	Metrics      collectors.Metrics       `json:"metrics"`
+	CustomChecks []collectors.CustomCheck `json:"custom_checks,omitempty"`
 }
 
 func main() {
@@ -69,6 +71,9 @@ func main() {
 
 	client := &http.Client{Timeout: time.Duration(timeout) * time.Second}
 	endpoint := cfg.Server.URL + "/api/v1/metrics"
+	if cfg.ChecksDir == "" {
+		cfg.ChecksDir = "/etc/logsway/checks"
+	}
 
 	log.Printf("Logsway agent v%s starting — host=%s server=%s interval=%ds",
 		Version, hostname, cfg.Server.URL, interval)
@@ -91,10 +96,11 @@ func send(client *http.Client, endpoint, hostname string, cfg *Config) {
 	}
 
 	payload := MetricPayload{
-		Hostname:  hostname,
-		Timestamp: time.Now().UTC(),
-		Tags:      cfg.Agent.Tags,
-		Metrics:   m,
+		Hostname:     hostname,
+		Timestamp:    time.Now().UTC(),
+		Tags:         cfg.Agent.Tags,
+		Metrics:      m,
+		CustomChecks: collectors.RunCustomChecks(cfg.ChecksDir),
 	}
 
 	body, _ := json.Marshal(payload)

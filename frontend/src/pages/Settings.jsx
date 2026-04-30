@@ -10,13 +10,17 @@ const DEFAULT_SETTINGS = {
   diskWarn: 80,
   diskCrit: 90,
   retention: 7,
+  darkMode: false,
 }
 
 export default function SettingsPage() {
   const [s, setS] = useState(() => {
     try {
       const saved = localStorage.getItem('logsway-settings')
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS
+      const merged = saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS
+      const theme = localStorage.getItem('logsway-theme')
+      merged.darkMode = theme === 'dark'
+      return merged
     } catch {
       return DEFAULT_SETTINGS
     }
@@ -25,11 +29,21 @@ export default function SettingsPage() {
 
   function update(key, value) {
     setS((prev) => ({ ...prev, [key]: value }))
+    if (key === 'darkMode') {
+      if (value) {
+        document.documentElement.classList.add('theme-dark')
+        localStorage.setItem('logsway-theme', 'dark')
+      } else {
+        document.documentElement.classList.remove('theme-dark')
+        localStorage.setItem('logsway-theme', 'light')
+      }
+    }
     setSaved(false)
   }
 
   function save() {
     localStorage.setItem('logsway-settings', JSON.stringify(s))
+    localStorage.setItem('logsway-theme', s.darkMode ? 'dark' : 'light')
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -52,6 +66,29 @@ export default function SettingsPage() {
             placeholder="http://localhost:8080"
           />
         </Field>
+      </Section>
+
+      <Section title="Appearance">
+        <div className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2">
+          <div>
+            <p className="text-sm font-medium text-gray-700">Night Mode</p>
+            <p className="text-xs text-gray-400">Enable a dark theme across the app</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => update('darkMode', !s.darkMode)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              s.darkMode ? 'bg-gray-900' : 'bg-gray-300'
+            }`}
+            aria-pressed={s.darkMode}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                s.darkMode ? 'translate-x-5' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
       </Section>
 
       {/* Agent config snippet */}

@@ -2,6 +2,9 @@ server:
   url: "http://localhost:8080"
   timeout: 10
 
+# Cartella checks custom (script *.sh eseguibili)
+checks_dir: "/etc/logsway/checks"
+
 agent:
   hostname: ""          # leave empty to auto-detect
   interval: 30          # seconds between reports

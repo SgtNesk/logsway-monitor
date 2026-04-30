@@ -4,10 +4,11 @@ import "time"
 
 // MetricPayload — payload inviato dall'agent
 type MetricPayload struct {
-	Hostname  string            `json:"hostname"`
-	Timestamp time.Time         `json:"timestamp"`
-	Tags      []string          `json:"tags"`
-	Metrics   map[string]float64 `json:"metrics"`
+	Hostname     string             `json:"hostname"`
+	Timestamp    time.Time          `json:"timestamp"`
+	Tags         []string           `json:"tags"`
+	Metrics      map[string]float64 `json:"metrics"`
+	CustomChecks []CustomCheck      `json:"custom_checks,omitempty"`
 }
 
 // Host — stato corrente di un host
