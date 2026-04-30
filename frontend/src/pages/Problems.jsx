@@ -1,6 +1,7 @@
 import { useApi } from '../hooks/useApi'
 import { StatusBadge, Spinner, ErrorBox } from '../components/ui'
 import { Link } from 'react-router-dom'
+import EventLog from '../components/EventLog'
 
 const THRESHOLDS = {
   cpu_percent:  { warn: 70, crit: 85, label: 'CPU',  unit: '%' },
@@ -32,6 +33,7 @@ const SEVERITY_ORDER = { critical: 0, offline: 1, warning: 2 }
 
 export default function ProblemsPage() {
   const { data: hosts, loading, error } = useApi('/api/v1/hosts')
+  const { data: eventsData } = useApi('/api/v1/events?hours=24', 15000)
 
   if (loading) return <Spinner />
   if (error) return <ErrorBox message={error} />
@@ -51,13 +53,15 @@ export default function ProblemsPage() {
   )
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Problems</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Hosts and services that require attention
-        </p>
-      </div>
+    <div className="space-y-8">
+      {/* ── Sezione problemi attuali ── */}
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Problems</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Hosts and services that require attention
+          </p>
+        </div>
 
       {rows.length === 0 ? (
         <div className="card flex flex-col items-center py-16 text-center">
@@ -115,6 +119,18 @@ export default function ProblemsPage() {
           </table>
         </div>
       )}
+      </div>
+
+      {/* ── Event Log ── */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Recent Events</h2>
+          <p className="text-sm text-gray-500 mt-1">Cambi di stato nelle ultime 24 ore</p>
+        </div>
+        <div className="card">
+          <EventLog events={eventsData?.events ?? []} />
+        </div>
+      </div>
     </div>
   )
 }

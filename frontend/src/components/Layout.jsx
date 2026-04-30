@@ -37,6 +37,9 @@ export default function Layout({ children }) {
               <NavLink to="/" end className={linkClass}>
                 Dashboard
               </NavLink>
+              <NavLink to="/matrix" className={linkClass}>
+                Matrix
+              </NavLink>
               <NavLink to="/nongreen" className={linkClass}>
                 Problems
               </NavLink>

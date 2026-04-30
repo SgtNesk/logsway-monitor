@@ -34,28 +34,43 @@ func New(path string) (*DB, error) {
 }
 
 func (s *DB) migrate() error {
-	_, err := s.db.Exec(`
-		CREATE TABLE IF NOT EXISTS hosts (
-			hostname    TEXT PRIMARY KEY,
-			tags        TEXT NOT NULL DEFAULT '[]',
-			status      TEXT NOT NULL DEFAULT 'offline',
-			last_seen   DATETIME NOT NULL,
+	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS hosts (
+			hostname     TEXT PRIMARY KEY,
+			tags         TEXT NOT NULL DEFAULT '[]',
+			status       TEXT NOT NULL DEFAULT 'offline',
+			last_seen    DATETIME NOT NULL,
 			last_metrics TEXT NOT NULL DEFAULT '{}'
-		);
-
-		CREATE TABLE IF NOT EXISTS metrics (
-			id          INTEGER PRIMARY KEY AUTOINCREMENT,
-			hostname    TEXT NOT NULL,
-			name        TEXT NOT NULL,
-			value       REAL NOT NULL,
-			timestamp   DATETIME NOT NULL,
+		)`,
+		`CREATE TABLE IF NOT EXISTS metrics (
+			id        INTEGER PRIMARY KEY AUTOINCREMENT,
+			hostname  TEXT NOT NULL,
+			name      TEXT NOT NULL,
+			value     REAL NOT NULL,
+			timestamp DATETIME NOT NULL,
 			FOREIGN KEY (hostname) REFERENCES hosts(hostname) ON DELETE CASCADE
-		);
-
-		CREATE INDEX IF NOT EXISTS idx_metrics_hostname_ts ON metrics(hostname, timestamp);
-		CREATE INDEX IF NOT EXISTS idx_metrics_ts ON metrics(timestamp);
-	`)
-	return err
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_metrics_hostname_ts ON metrics(hostname, timestamp)`,
+		`CREATE INDEX IF NOT EXISTS idx_metrics_ts ON metrics(timestamp)`,
+		`CREATE TABLE IF NOT EXISTS events (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			timestamp   DATETIME NOT NULL,
+			hostname    TEXT NOT NULL,
+			service     TEXT NOT NULL,
+			from_status TEXT NOT NULL,
+			to_status   TEXT NOT NULL,
+			value       REAL,
+			message     TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_events_hostname ON events(hostname, timestamp DESC)`,
+	}
+	for _, s2 := range stmts {
+		if _, err := s.db.Exec(s2); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // StoreMetrics salva le metriche di un agent e aggiorna lo stato host
@@ -239,4 +254,105 @@ func computeStatus(metrics map[string]float64) string {
 		check(v, models.DiskWarning, models.DiskCritical)
 	}
 	return status
+}
+
+// CreateEvent registra un evento di cambio stato
+func (s *DB) CreateEvent(e models.Event) error {
+	_, err := s.db.Exec(
+		`INSERT INTO events (timestamp, hostname, service, from_status, to_status, value, message)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		e.Timestamp, e.Hostname, e.Service, e.FromStatus, e.ToStatus, e.Value, e.Message,
+	)
+	return err
+}
+
+// GetEvents restituisce eventi recenti, opzionalmente filtrati per hostname
+func (s *DB) GetEvents(hours int, hostname string) ([]models.Event, error) {
+	since := time.Now().Add(-time.Duration(hours) * time.Hour).UTC()
+
+	var rows *sql.Rows
+	var err error
+	if hostname != "" {
+		rows, err = s.db.Query(
+			`SELECT id, timestamp, hostname, service, from_status, to_status, value, message
+			 FROM events WHERE timestamp > ? AND hostname = ? ORDER BY timestamp DESC LIMIT 500`,
+			since, hostname,
+		)
+	} else {
+		rows, err = s.db.Query(
+			`SELECT id, timestamp, hostname, service, from_status, to_status, value, message
+			 FROM events WHERE timestamp > ? ORDER BY timestamp DESC LIMIT 500`,
+			since,
+		)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []models.Event
+	for rows.Next() {
+		var e models.Event
+		var val sql.NullFloat64
+		if err := rows.Scan(&e.ID, &e.Timestamp, &e.Hostname, &e.Service,
+			&e.FromStatus, &e.ToStatus, &val, &e.Message); err != nil {
+			return nil, err
+		}
+		if val.Valid {
+			v := val.Float64
+			e.Value = &v
+		}
+		events = append(events, e)
+	}
+	if events == nil {
+		events = []models.Event{}
+	}
+	return events, nil
+}
+
+// GetLastEvent restituisce l'ultimo evento per host+service
+func (s *DB) GetLastEvent(hostname, service string) (*models.Event, error) {
+	var e models.Event
+	var val sql.NullFloat64
+	err := s.db.QueryRow(
+		`SELECT id, timestamp, hostname, service, from_status, to_status, value, message
+		 FROM events WHERE hostname = ? AND service = ? ORDER BY timestamp DESC LIMIT 1`,
+		hostname, service,
+	).Scan(&e.ID, &e.Timestamp, &e.Hostname, &e.Service,
+		&e.FromStatus, &e.ToStatus, &val, &e.Message)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if val.Valid {
+		v := val.Float64
+		e.Value = &v
+	}
+	return &e, nil
+}
+
+// GetMetricHistory restituisce lo storico di una singola metrica
+func (s *DB) GetMetricHistory(hostname, metricName string, since time.Duration) ([]*models.MetricPoint, error) {
+	rows, err := s.db.Query(
+		`SELECT name, value, timestamp FROM metrics
+		 WHERE hostname = ? AND name = ? AND timestamp > ?
+		 ORDER BY timestamp ASC`,
+		hostname, metricName, time.Now().Add(-since).UTC(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var points []*models.MetricPoint
+	for rows.Next() {
+		p := &models.MetricPoint{}
+		if err := rows.Scan(&p.Name, &p.Value, &p.Timestamp); err != nil {
+			return nil, err
+		}
+		points = append(points, p)
+	}
+	return points, nil
 }

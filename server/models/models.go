@@ -43,6 +43,8 @@ var (
 	RAMCritical  = 90.0
 	DiskWarning  = 80.0
 	DiskCritical = 90.0
+	LoadWarning  = 2.0
+	LoadCritical = 5.0
 )
 
 const OfflineAfter = 2 * 60 // secondi

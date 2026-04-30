@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -26,7 +27,11 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	api.HandleFunc("/hosts", h.ListHosts).Methods("GET")
 	api.HandleFunc("/hosts/{hostname}", h.GetHost).Methods("GET")
 	api.HandleFunc("/hosts/{hostname}/metrics", h.GetHostMetrics).Methods("GET")
+	api.HandleFunc("/hosts/{hostname}/services/{service}", h.GetServiceDetail).Methods("GET")
+	api.HandleFunc("/hosts/{hostname}/services/{service}/history", h.GetServiceHistory).Methods("GET")
 	api.HandleFunc("/stats", h.GetStats).Methods("GET")
+	api.HandleFunc("/matrix", h.GetMatrix).Methods("GET")
+	api.HandleFunc("/events", h.GetEvents).Methods("GET")
 }
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
@@ -43,11 +48,50 @@ func (h *Handler) ReceiveMetrics(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "hostname required")
 		return
 	}
+
+	// Carica stato precedente PRIMA di salvare le nuove metriche
+	prevHost, _ := h.db.GetHost(payload.Hostname)
+
 	if err := h.db.StoreMetrics(&payload); err != nil {
 		respondError(w, http.StatusInternalServerError, "storage error")
 		return
 	}
+
+	// Genera eventi per ogni cambio di stato servizio
+	if prevHost != nil {
+		now := time.Now().UTC()
+		prevSvcs := serviceStatusesFromMetrics(prevHost.LastMetrics, prevHost.LastSeen)
+		currSvcs := serviceStatusesFromMetrics(payload.Metrics, now)
+
+		for _, svc := range serviceList {
+			prev := prevSvcs[svc]
+			curr := currSvcs[svc]
+			if prev.Status == "unknown" || prev.Status == curr.Status {
+				continue
+			}
+			h.db.CreateEvent(models.Event{ //nolint:errcheck
+				Timestamp:  now,
+				Hostname:   payload.Hostname,
+				Service:    svc,
+				FromStatus: prev.Status,
+				ToStatus:   curr.Status,
+				Value:      curr.Value,
+				Message:    eventMessage(svc, prev.Status, curr.Status, curr.Value),
+			})
+		}
+	}
+
 	respond(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func eventMessage(service, from, to string, value *float64) string {
+	if to == "ok" {
+		return fmt.Sprintf("%s returned to normal", service)
+	}
+	if value != nil {
+		return fmt.Sprintf("%s is %s (value: %.1f)", service, to, *value)
+	}
+	return fmt.Sprintf("%s changed from %s to %s", service, from, to)
 }
 
 func (h *Handler) ListHosts(w http.ResponseWriter, r *http.Request) {
